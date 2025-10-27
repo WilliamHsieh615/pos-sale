@@ -14,7 +14,8 @@ public class ItemRepository {
     public ItemRepository(Connection connection) { 
     	this.connection = connection;
     }
-
+    
+    // 使用 itemCode 查 Item
     public Item findItemByCode(String code) throws SQLException {
     	
     	String sql = "SELECT i.item_code, i.item_c_name, i.category01, p.unit_price " +

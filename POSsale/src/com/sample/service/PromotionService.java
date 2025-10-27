@@ -69,8 +69,7 @@ public class PromotionService {
 			cartItem.setQuantity(quantity);
 			cart.add(cartItem);
 		}
-
-		sc.close();
+		
 		calculate(cart, isMember);
 	}
 
@@ -100,9 +99,9 @@ public class PromotionService {
 	                || cartItem.getItem().getCategory01().equals("16"))) {
 	            memberDiscount = cartItem.getTotal().multiply(new BigDecimal("0.05"))
 	                    .setScale(0, RoundingMode.HALF_UP);
+	            cartItem.setMemberDiscount(memberDiscount);
+		        memberDiscountTotal = memberDiscountTotal.add(memberDiscount);
 	        }
-	        cartItem.setMemberDiscount(memberDiscount);
-	        memberDiscountTotal = memberDiscountTotal.add(memberDiscount);
 	    }
 
 	    // 找出當日所有有效活動
@@ -142,15 +141,27 @@ public class PromotionService {
 	            }
 	        }
 	    }
+	    
+	    // 計算最終應付金額
+	    BigDecimal finalTotal = originalTotal
+	            .subtract(memberDiscountTotal)
+	            .subtract(activityDiscountTotal)
+	            .setScale(0, RoundingMode.HALF_UP);
+	    
+	    // 填入 Receipt
+        receipt.setOriginalTotal(originalTotal.doubleValue());
+        receipt.setMemberDiscountTotal(memberDiscountTotal);
+        receipt.setActivityDiscountTotal(activityDiscountTotal);
+        receipt.setFinalTotal(finalTotal.doubleValue());
 
 	    // 印出明細
-	    System.out.printf("%-15s %8s %8s%% %8s %s\n", "品名", "原價", "比例%", "折扣總額", "活動折扣明細");
+        System.out.printf("%-15s %8s %8s%% %8s %s\n", "品名", "原價", "折扣比", "折扣總額", "活動折扣明細");
 	    for (CartItem cartItem : cart) {
-	        BigDecimal subtotalEligible = cartItem.getItemActivityDiscount().compareTo(BigDecimal.ZERO) > 0
-	                ? cartItem.getTotal() : BigDecimal.ZERO;
-	        BigDecimal itemProportion = subtotalEligible.compareTo(BigDecimal.ZERO) > 0
-	                ? cartItem.getTotal().divide(subtotalEligible, 10, RoundingMode.HALF_UP)
-	                : BigDecimal.ZERO;
+	        BigDecimal subtotalEligible = cartItem.getItemActivityDiscount()
+	        		.compareTo(BigDecimal.ZERO) > 0 ? cartItem.getTotal() : BigDecimal.ZERO;
+	        BigDecimal itemProportion = cartItem.getItemActivityDiscount()
+	                .divide(cartItem.getTotal(), 2, RoundingMode.HALF_UP)
+	                .multiply(new BigDecimal("100"));
 
 	        // 將活動折扣明細組成字串
 	        StringBuilder activityDetail = new StringBuilder();
@@ -164,15 +175,12 @@ public class PromotionService {
 	        System.out.printf("%-15s %8s %8s%% %8s %s\n",
 	                cartItem.getItem().getItemCName(),
 	                cartItem.getTotal().setScale(0, RoundingMode.HALF_UP),
-	                itemProportion.multiply(new BigDecimal("100")).setScale(0, RoundingMode.HALF_UP),
+	                itemProportion.setScale(0, RoundingMode.HALF_UP),
 	                cartItem.getItemActivityDiscount(),
 	                activityDetail.toString());
 	    }
 
-	    BigDecimal finalTotal = originalTotal
-	            .subtract(memberDiscountTotal)
-	            .subtract(activityDiscountTotal)
-	            .setScale(0, RoundingMode.HALF_UP);
+	    
 
 	    System.out.println("\n=============================");
 	    System.out.println("原價總額: " + originalTotal.setScale(0, RoundingMode.HALF_UP));
