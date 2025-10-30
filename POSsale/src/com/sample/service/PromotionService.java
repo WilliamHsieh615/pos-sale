@@ -20,12 +20,12 @@ import com.sample.repo.ItemRepository;
 
 public class PromotionService {
 
-	private ItemRepository itemRepo;
-	private ActivityRepository activityRepo;
+	private ItemRepository itemRepository;
+	private ActivityRepository activityRepository;
 
-	public PromotionService(Connection conn) {
-		this.itemRepo = new ItemRepository(conn);
-		this.activityRepo = new ActivityRepository(conn);
+	public PromotionService(Connection connection) {
+		this.itemRepository = new ItemRepository(connection);
+		this.activityRepository = new ActivityRepository(connection);
 	}
 
 	public void runPromotion() throws SQLException {
@@ -46,7 +46,7 @@ public class PromotionService {
 			if (code.equalsIgnoreCase("done"))
 				break;
 
-			Item item = itemRepo.findItemByCode(code);
+			Item item = itemRepository.findItemByCode(code);
 			if (item == null) {
 				System.out.println("查無此商品代號，請重新輸入");
 				continue;
@@ -87,7 +87,7 @@ public class PromotionService {
 	    // 計算原始總額
 	    for (CartItem cartItem : cart) {
 	        BigDecimal itemTotal = cartItem.getTotal();
-	        originalTotal = originalTotal.add(itemTotal);
+	        originalTotal = originalTotal.add(itemTotal); // originalTotal += itemTotal
 	        cartItem.setItemActivityDiscount(BigDecimal.ZERO); // 初始化總折扣
 	        cartItem.setActivityDiscountMap(new LinkedHashMap<>()); // 初始化活動折扣明細
 	    }
@@ -98,25 +98,25 @@ public class PromotionService {
 	        if (isMember && (cartItem.getItem().getCategory01().equals("07")
 	                || cartItem.getItem().getCategory01().equals("16"))) {
 	            memberDiscount = cartItem.getTotal().multiply(new BigDecimal("0.05"))
-	                    .setScale(0, RoundingMode.HALF_UP);
+	                    .setScale(0, RoundingMode.HALF_UP); // memberDiscount = cartItem.getTotal() * 0.05 四捨五入
 	            cartItem.setMemberDiscount(memberDiscount);
-		        memberDiscountTotal = memberDiscountTotal.add(memberDiscount);
+		        memberDiscountTotal = memberDiscountTotal.add(memberDiscount); // memberDiscountTotal += memberDiscount
 	        }
 	    }
 
 	    // 找出當日所有有效活動
-	    List<Activity> allActivities = activityRepo.findAllValidActivities(today);
+	    List<Activity> allActivities = activityRepository.findAllValidActivities(today);
 
 	    // 每個活動單獨處理
 	    for (Activity activity : allActivities) {
 
 	        // 找出符合該活動的商品
 	        List<CartItem> activityEligibleItems = new ArrayList<>();
-	        BigDecimal eligibleSubtotal = BigDecimal.ZERO;
+	        BigDecimal eligibleSubtotal = BigDecimal.ZERO; // 初始化符合活動的小計
 	        for (CartItem cartItem : cart) {
 	            if (activity.getItemDiscountGroup().contains(cartItem.getItem().getCategory01())) {
 	                activityEligibleItems.add(cartItem);
-	                eligibleSubtotal = eligibleSubtotal.add(cartItem.getTotal());
+	                eligibleSubtotal = eligibleSubtotal.add(cartItem.getTotal()); // eligibleSubtotal += cartItem.getTotal()
 	            }
 	        }
 
@@ -126,18 +126,23 @@ public class PromotionService {
 	            // 活動折扣攤提給符合商品
 	            for (CartItem cartItem : activityEligibleItems) {
 	                BigDecimal proportion = cartItem.getTotal()
-	                        .divide(eligibleSubtotal, 10, RoundingMode.HALF_UP);
+	                        .divide(eligibleSubtotal, 10, RoundingMode.HALF_UP); 
+	                // 符合活動的該商品小計 / 符合活動商品總額，除法四捨五入取至小數點後 10 位
 	                BigDecimal itemActivityDiscount = activity.getAwardAmtG1()
 	                        .multiply(proportion)
 	                        .setScale(0, RoundingMode.HALF_UP);
+	                // 活動總折扣金額 * 每個商品的佔比，四捨五入取整數
+	                
+	                
 	                // 累加總折扣
 	                cartItem.setItemActivityDiscount(
 	                        cartItem.getItemActivityDiscount().add(itemActivityDiscount)
-	                );
+	                ); // 同一個商品參加多個活動折扣的累加
+	                
 	                // 記錄折扣明細
 	                cartItem.getActivityDiscountMap().put(activity.getActivityName(), itemActivityDiscount);
 
-	                activityDiscountTotal = activityDiscountTotal.add(itemActivityDiscount);
+	                activityDiscountTotal = activityDiscountTotal.add(itemActivityDiscount); // activityDiscountTotal += itemActivityDiscount
 	            }
 	        }
 	    }
@@ -147,6 +152,7 @@ public class PromotionService {
 	            .subtract(memberDiscountTotal)
 	            .subtract(activityDiscountTotal)
 	            .setScale(0, RoundingMode.HALF_UP);
+	    // itemActivityDiscount - memberDiscountTotal - activityDiscountTotal，四捨五入
 	    
 	    // 建立 Receipt Line
 	    List<Line> lines = new ArrayList<>();
@@ -160,13 +166,14 @@ public class PromotionService {
 
 	        BigDecimal payables = cartItem.getTotal().subtract(discount);
 	        
+	        // 折扣比例
 	        BigDecimal discountRatePct = BigDecimal.ZERO;
 	        if (cartItem.getTotal().compareTo(BigDecimal.ZERO) > 0) {
 	            discountRatePct = discount
 	                    .divide(cartItem.getTotal(), 4, RoundingMode.HALF_UP)
 	                    .multiply(new BigDecimal("100"))
 	                    .setScale(2, RoundingMode.HALF_UP);
-	        }
+	        } // discount / artItem.getTotal() * 100，除法四捨五入取至小點後四位，後乘以100取至小數點後兩位
 
 	        // 活動明細字串
 	        StringBuilder discountFormula = new StringBuilder();

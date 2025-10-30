@@ -39,7 +39,7 @@ public class ActivityRepository {
                 activity.setMeetCriteriaAmtG1(resultSet.getBigDecimal("meet_criteria_amt_g1"));
                 activity.setAwardAmtG1(resultSet.getBigDecimal("award_amt_g1"));
 
-                String discountGroupStr = resultSet.getString("item_discount_group");
+                String discountGroupStr = resultSet.getString("item_discount_group"); // 假設 item_discount_group 欄位的資料型態是字串
                 List<String> discountGroupList = new ArrayList<>();
                 if (discountGroupStr != null && !discountGroupStr.isEmpty()) {
                     for (String part : discountGroupStr.split(",")) {
