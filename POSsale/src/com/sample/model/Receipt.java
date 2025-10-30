@@ -9,7 +9,8 @@ public class Receipt {
 	private BigDecimal memberDiscountTotal; // 會員折扣總額
     private BigDecimal activityDiscountTotal; // 活動折扣總額
     private double finalTotal; // 攤提後最終應付金額
-    private List<CartItem> cartItems;
+    private List<Line> lines; // 銷售明細
+    
 	public double getOriginalTotal() {
 		return originalTotal;
 	}
@@ -34,10 +35,10 @@ public class Receipt {
 	public void setFinalTotal(double finalTotal) {
 		this.finalTotal = finalTotal;
 	}
-	public List<CartItem> getCartItems() {
-		return cartItems;
+	public List<Line> getLines() {
+		return lines;
 	}
-	public void setCartItems(List<CartItem> cartItems) {
-		this.cartItems = cartItems;
+	public void setLines(List<Line> lines) {
+		this.lines = lines;
 	}
 }

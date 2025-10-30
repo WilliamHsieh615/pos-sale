@@ -13,6 +13,7 @@ import java.util.Scanner;
 import com.sample.model.Activity;
 import com.sample.model.CartItem;
 import com.sample.model.Item;
+import com.sample.model.Line;
 import com.sample.model.Receipt;
 import com.sample.repo.ActivityRepository;
 import com.sample.repo.ItemRepository;
@@ -76,7 +77,6 @@ public class PromotionService {
 	private void calculate(List<CartItem> cart, boolean isMember) throws SQLException {
 
 	    Receipt receipt = new Receipt();
-	    receipt.setCartItems(cart);
 
 	    BigDecimal originalTotal = BigDecimal.ZERO;
 	    BigDecimal memberDiscountTotal = BigDecimal.ZERO;
@@ -148,39 +148,63 @@ public class PromotionService {
 	            .subtract(activityDiscountTotal)
 	            .setScale(0, RoundingMode.HALF_UP);
 	    
-	    // 填入 Receipt
-        receipt.setOriginalTotal(originalTotal.doubleValue());
-        receipt.setMemberDiscountTotal(memberDiscountTotal);
-        receipt.setActivityDiscountTotal(activityDiscountTotal);
-        receipt.setFinalTotal(finalTotal.doubleValue());
-
-	    // 印出明細
-        System.out.printf("%-15s %8s %8s%% %8s %s\n", "品名", "原價", "折扣比", "折扣總額", "活動折扣明細");
+	    // 建立 Receipt Line
+	    List<Line> lines = new ArrayList<>();
 	    for (CartItem cartItem : cart) {
-	        BigDecimal subtotalEligible = cartItem.getItemActivityDiscount()
-	        		.compareTo(BigDecimal.ZERO) > 0 ? cartItem.getTotal() : BigDecimal.ZERO;
-	        BigDecimal itemProportion = cartItem.getItemActivityDiscount()
-	                .divide(cartItem.getTotal(), 2, RoundingMode.HALF_UP)
-	                .multiply(new BigDecimal("100"));
+	        Line line = new Line();
 
-	        // 將活動折扣明細組成字串
-	        StringBuilder activityDetail = new StringBuilder();
+	        BigDecimal unit = cartItem.getItem().getCurrentPrice();
+	        BigDecimal discount = cartItem.getMemberDiscount() != null 
+	        		? cartItem.getMemberDiscount().add(cartItem.getItemActivityDiscount())
+	        		: cartItem.getItemActivityDiscount();
+
+	        BigDecimal payables = cartItem.getTotal().subtract(discount);
+	        
+	        BigDecimal discountRatePct = BigDecimal.ZERO;
+	        if (cartItem.getTotal().compareTo(BigDecimal.ZERO) > 0) {
+	            discountRatePct = discount
+	                    .divide(cartItem.getTotal(), 4, RoundingMode.HALF_UP)
+	                    .multiply(new BigDecimal("100"))
+	                    .setScale(2, RoundingMode.HALF_UP);
+	        }
+
+	        // 活動明細字串
+	        StringBuilder discountFormula = new StringBuilder();
 	        for (var entry : cartItem.getActivityDiscountMap().entrySet()) {
-	            activityDetail.append(entry.getKey())
+	            discountFormula.append(entry.getKey())
 	                    .append(":")
 	                    .append(entry.getValue())
 	                    .append(" ");
 	        }
 
+	        line.setUnit(unit);
+	        line.setDiscount(discount);
+	        line.setPayables(payables);
+	        line.setDiscountRatePct(discountRatePct);
+	        line.setDiscountFormula(discountFormula.toString().trim());
+	        lines.add(line);
+	    }
+	    
+	    // 填入 Receipt
+        receipt.setOriginalTotal(originalTotal.doubleValue());
+        receipt.setMemberDiscountTotal(memberDiscountTotal);
+        receipt.setActivityDiscountTotal(activityDiscountTotal);
+        receipt.setFinalTotal(finalTotal.doubleValue());
+        receipt.setLines(lines);
+
+	    // 輸出明細
+        System.out.printf("%-15s %8s %8s%% %8s %s\n", "品名", "原價", "折扣比", "折扣總額", "活動折扣明細");
+        for (int i = 0; i < cart.size(); i++) {
+	        CartItem cartItem = cart.get(i);
+	        Line line = lines.get(i);
+
 	        System.out.printf("%-15s %8s %8s%% %8s %s\n",
 	                cartItem.getItem().getItemCName(),
-	                cartItem.getTotal().setScale(0, RoundingMode.HALF_UP),
-	                itemProportion.setScale(0, RoundingMode.HALF_UP),
-	                cartItem.getItemActivityDiscount(),
-	                activityDetail.toString());
+	                line.getUnit().multiply(new BigDecimal(cartItem.getQuantity())).setScale(0, RoundingMode.HALF_UP),
+	                line.getDiscountRatePct(),
+	                line.getDiscount(),
+	                line.getDiscountFormula());
 	    }
-
-	    
 
 	    System.out.println("\n=============================");
 	    System.out.println("原價總額: " + originalTotal.setScale(0, RoundingMode.HALF_UP));
